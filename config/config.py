@@ -28,11 +28,77 @@ SYSTEM_CONFIG = {
 # Configurações de monitoramento de arquivos
 FILE_MONITOR_CONFIG = {
     "watch_directory": "D:\\docs_baixados",  # Pasta a ser monitorada
-    "supported_extensions": [".pdf"],        # Extensões suportadas
+    "supported_extensions": [
+        # Documentos
+        ".pdf", ".doc", ".docx", ".rtf",
+        # Planilhas
+        ".xls", ".xlsx", ".csv", ".tsv",
+        # Arquivos de texto
+        ".txt", ".json", ".xml", ".html",
+        # Arquivos compactados
+        ".zip", ".7z", ".rar", ".tar.gz", ".tar.bz2"
+    ],
     "scan_interval": 30,                    # Intervalo de verificação (segundos)
-    "max_file_size": 100 * 1024 * 1024,    # Tamanho máximo de arquivo (100MB)
+    "max_file_size": 500 * 1024 * 1024,    # Tamanho máximo de arquivo (500MB)
     "backup_processed": True,               # Fazer backup de arquivos processados
     "backup_directory": str(DATA_DIR / "processed"),
+    "discard_directory": str(DATA_DIR / "discard"),  # Pasta para arquivos sem planilhas
+    "recursive_scan": True,                 # Verificar subpastas
+    "max_depth": 10,                        # Profundidade máxima de subpastas
+}
+
+# Configurações de descompactação
+ARCHIVE_EXTRACTOR_CONFIG = {
+    "supported_formats": [".zip", ".7z", ".rar", ".tar.gz", ".tar.bz2"],
+    "extract_to_subfolder": True,           # Extrair para subpasta com nome do arquivo
+    "delete_after_extract": True,           # Remover arquivo compactado após extração
+    "max_extract_size": 1024 * 1024 * 1024, # Tamanho máximo para extração (1GB)
+    "password_file": str(DATA_DIR / "passwords.txt"),  # Arquivo com senhas comuns
+    "temp_directory": str(DATA_DIR / "temp"),
+}
+
+# Configurações de IA para classificação
+AI_CLASSIFIER_CONFIG = {
+    "model_type": "sentence_transformer",   # Tipo de modelo (sentence_transformer, sklearn, custom)
+    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+    "confidence_threshold": 0.7,            # Threshold mínimo de confiança
+    "batch_size": 10,                       # Tamanho do lote para processamento
+    "max_text_length": 10000,               # Comprimento máximo do texto para análise
+    "training_data_path": str(DATA_DIR / "training_data"),
+    "models_path": str(DATA_DIR / "ai_models"),
+    "keywords_weight": 0.3,                 # Peso das palavras-chave na classificação
+    "structure_weight": 0.4,                # Peso da estrutura do documento
+    "content_weight": 0.3,                  # Peso do conteúdo textual
+}
+
+# Palavras-chave para classificação de planilhas de engenharia
+ENGINEERING_KEYWORDS = {
+    "sinapi": [
+        "sinapi", "sistema nacional de pesquisa de custos e índices da construção civil",
+        "composição de preços", "custo unitário", "insumo", "serviço",
+        "código", "descrição", "unidade", "preço unitário"
+    ],
+    "sicro": [
+        "sicro", "sistema de custos rodoviários", "rodovia", "pavimentação",
+        "terraplenagem", "drenagem", "ponte", "viaduto", "túnel"
+    ],
+    "cpos": [
+        "cpos", "composição de preços", "orçamento", "preço de referência",
+        "composição", "insumo", "serviço", "custo"
+    ],
+    "emop": [
+        "emop", "empresa", "municipal", "estadual", "federal",
+        "prefeitura", "governo", "administração pública"
+    ],
+    "criada": [
+        "criada", "customizada", "específica", "particular",
+        "proprietária", "interna", "exclusiva"
+    ],
+    "geral": [
+        "engenharia", "construção", "obra", "projeto", "orçamento",
+        "preço", "custo", "serviço", "material", "equipamento",
+        "mão de obra", "composição", "tabela de preços"
+    ]
 }
 
 # Configurações do banco de dados
@@ -65,19 +131,42 @@ PDF_PROCESSOR_CONFIG = {
     "temp_directory": str(DATA_DIR / "temp"),
 }
 
+# Configurações de processamento de Word
+WORD_PROCESSOR_CONFIG = {
+    "extract_tables": True,
+    "extract_text": True,
+    "extract_images": False,
+    "max_file_size": 100 * 1024 * 1024,  # 100MB
+    "timeout": 180,  # segundos
+    "temp_directory": str(DATA_DIR / "temp"),
+}
+
+# Configurações de processamento de planilhas
+SPREADSHEET_PROCESSOR_CONFIG = {
+    "supported_formats": [".xls", ".xlsx", ".csv", ".tsv"],
+    "max_sheet_size": 10000,  # Máximo de linhas por planilha
+    "detect_headers": True,
+    "auto_clean": True,  # Limpeza automática de dados
+    "encoding_detection": True,
+    "timeout": 120,  # segundos
+}
+
 # Configurações de classificação de planilhas
 SPREADSHEET_CLASSIFIER_CONFIG = {
     "price_reference_keywords": [
         "sinapi", "sicro", "cpos", "emop", "criada",
         "preço de referência", "composição de preços",
-        "tabela de preços", "orçamento de referência"
+        "tabela de preços", "orçamento de referência",
+        "custo unitário", "preço unitário"
     ],
     "excluded_keywords": [
         "contrato", "licitação", "edital", "proposta",
-        "relatório", "memorial", "projeto"
+        "relatório", "memorial", "projeto", "apresentação",
+        "manual", "instrução", "norma", "regulamento"
     ],
     "confidence_threshold": 0.7,
     "max_services_per_file": 10000,
+    "min_services_for_valid": 5,  # Mínimo de serviços para considerar válido
 }
 
 # Configurações de logging
@@ -88,6 +177,8 @@ LOGGING_CONFIG = {
     "max_size": 10 * 1024 * 1024,  # 10MB
     "backup_count": 5,
     "console_output": True,
+    "ai_log_file": str(LOGS_DIR / "ai_classifier.log"),
+    "file_operations_log": str(LOGS_DIR / "file_operations.log"),
 }
 
 # Configurações do Langflow
@@ -117,6 +208,8 @@ VALIDATION_CONFIG = {
     "max_value": 999999999.99,
     "required_fields": ["source", "service_code", "description", "value"],
     "date_format": "%Y-%m-%d",
+    "currency_symbols": ["R$", "$", "€", "£"],
+    "decimal_separators": [",", "."],
 }
 
 # Configurações de performance
@@ -126,6 +219,8 @@ PERFORMANCE_CONFIG = {
     "memory_limit": 1024 * 1024 * 1024,  # 1GB
     "cache_enabled": True,
     "cache_ttl": 3600,  # 1 hora
+    "ai_processing_timeout": 30,  # segundos
+    "file_processing_timeout": 300,  # segundos
 }
 
 # Configurações de segurança
@@ -134,6 +229,10 @@ SECURITY_CONFIG = {
     "hash_file_paths": True,
     "sanitize_inputs": True,
     "max_file_path_length": 500,
+    "allowed_file_extensions": [
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".txt",
+        ".zip", ".7z", ".rar", ".json", ".xml", ".html"
+    ],
 }
 
 def get_config(section: str) -> Dict[str, Any]:
@@ -149,9 +248,14 @@ def get_config(section: str) -> Dict[str, Any]:
     configs = {
         "system": SYSTEM_CONFIG,
         "file_monitor": FILE_MONITOR_CONFIG,
+        "archive_extractor": ARCHIVE_EXTRACTOR_CONFIG,
+        "ai_classifier": AI_CLASSIFIER_CONFIG,
+        "engineering_keywords": ENGINEERING_KEYWORDS,
         "database": DATABASE_CONFIG,
         "chroma": CHROMA_CONFIG,
         "pdf_processor": PDF_PROCESSOR_CONFIG,
+        "word_processor": WORD_PROCESSOR_CONFIG,
+        "spreadsheet_processor": SPREADSHEET_PROCESSOR_CONFIG,
         "spreadsheet_classifier": SPREADSHEET_CLASSIFIER_CONFIG,
         "logging": LOGGING_CONFIG,
         "langflow": LANGFLOW_CONFIG,
@@ -198,6 +302,9 @@ def create_directories():
         DATA_DIR / "processed",
         DATA_DIR / "temp",
         DATA_DIR / "raw",
+        DATA_DIR / "discard",
+        DATA_DIR / "training_data",
+        DATA_DIR / "ai_models",
         LOGS_DIR,
         DATABASE_DIR,
     ]
@@ -218,4 +325,11 @@ if __name__ == "__main__":
         
     print(f"Diretório base: {BASE_DIR}")
     print(f"Diretório de dados: {DATA_DIR}")
-    print(f"Diretório de banco: {DATABASE_DIR}") 
+    print(f"Diretório de banco: {DATABASE_DIR}")
+    
+    # Mostrar configurações de IA
+    ai_config = get_config("ai_classifier")
+    print(f"\nConfigurações de IA:")
+    print(f"- Modelo: {ai_config.get('model_name', 'N/A')}")
+    print(f"- Threshold de confiança: {ai_config.get('confidence_threshold', 'N/A')}")
+    print(f"- Tamanho do lote: {ai_config.get('batch_size', 'N/A')}") 
