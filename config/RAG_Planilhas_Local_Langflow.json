@@ -1,0 +1,250 @@
+{
+  "folder_name": "RAG Planilhas Local",
+  "folder_description": "Fluxo para análise RAG de planilhas de orçamento usando ChromaDB local.",
+  "description": "Sistema RAG para Planilhas de Orçamento usando ChromaDB local",
+  "name": "RAG Planilhas Local",
+  "nodes": [
+    {
+      "id": "input_query",
+      "type": "InputNode",
+      "position": {
+        "x": 100,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "input_value": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "multiline": true,
+              "value": "Quais orçamentos temos para clientes corporativos?",
+              "name": "Pergunta sobre Orçamentos"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "chromadb_search",
+      "type": "ChromaNode",
+      "position": {
+        "x": 400,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "collection_name": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "value": "orcamentos_planilhas",
+              "name": "Nome da Coleção"
+            },
+            "query": {
+              "type": "str",
+              "required": true,
+              "show": false,
+              "name": "Query"
+            },
+            "n_results": {
+              "type": "int",
+              "required": true,
+              "show": true,
+              "value": 5,
+              "name": "Número de Resultados"
+            },
+            "embedding_function": {
+              "type": "str",
+              "required": false,
+              "show": true,
+              "value": "default",
+              "name": "Função de Embedding"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ollama_llm",
+      "type": "OllamaNode",
+      "position": {
+        "x": 700,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "model": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "value": "llama2",
+              "name": "Modelo"
+            },
+            "temperature": {
+              "type": "float",
+              "required": true,
+              "show": true,
+              "value": 0.7,
+              "name": "Temperatura"
+            },
+            "max_tokens": {
+              "type": "int",
+              "required": true,
+              "show": true,
+              "value": 1000,
+              "name": "Máximo de Tokens"
+            },
+            "top_p": {
+              "type": "float",
+              "required": true,
+              "show": true,
+              "value": 0.9,
+              "name": "Top P"
+            },
+            "top_k": {
+              "type": "int",
+              "required": true,
+              "show": true,
+              "value": 40,
+              "name": "Top K"
+            },
+            "repeat_penalty": {
+              "type": "float",
+              "required": true,
+              "show": true,
+              "value": 1.1,
+              "name": "Penalidade de Repetição"
+            },
+            "system_message": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "value": "Você é um assistente especializado em análise de planilhas de orçamento. Analise os dados fornecidos e responda de forma clara e estruturada. Se houver informações sobre valores, clientes, produtos ou prazos, destaque-os na resposta.",
+              "name": "Mensagem do Sistema"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "prompt_template",
+      "type": "PromptTemplateNode",
+      "position": {
+        "x": 550,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "template": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "multiline": true,
+              "value": "Com base nos dados das planilhas de orçamento fornecidos, responda à seguinte pergunta:\n\nPergunta: {query}\n\nDados das planilhas:\n{context}\n\nPor favor, analise os dados e forneça uma resposta detalhada, incluindo:\n- Resumo dos orçamentos encontrados\n- Valores totais se disponíveis\n- Clientes mencionados\n- Produtos ou serviços\n- Prazos ou datas importantes\n\nResposta:",
+              "name": "Template"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "output_result",
+      "type": "OutputNode",
+      "position": {
+        "x": 1000,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "output_type": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "value": "str",
+              "name": "Tipo de Saída"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "text_splitter",
+      "type": "TextSplitterNode",
+      "position": {
+        "x": 250,
+        "y": 200
+      },
+      "data": {
+        "node": {
+          "template": {
+            "separator": {
+              "type": "str",
+              "required": true,
+              "show": true,
+              "value": "\\n",
+              "name": "Separador"
+            },
+            "chunk_size": {
+              "type": "int",
+              "required": true,
+              "show": true,
+              "value": 1000,
+              "name": "Tamanho do Chunk"
+            },
+            "chunk_overlap": {
+              "type": "int",
+              "required": true,
+              "show": true,
+              "value": 200,
+              "name": "Sobreposição"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "input_query",
+      "target": "text_splitter",
+      "sourceHandle": "input_value",
+      "targetHandle": "text"
+    },
+    {
+      "source": "text_splitter",
+      "target": "chromadb_search",
+      "sourceHandle": "text",
+      "targetHandle": "query"
+    },
+    {
+      "source": "chromadb_search",
+      "target": "prompt_template",
+      "sourceHandle": "documents",
+      "targetHandle": "context"
+    },
+    {
+      "source": "input_query",
+      "target": "prompt_template",
+      "sourceHandle": "input_value",
+      "targetHandle": "query"
+    },
+    {
+      "source": "prompt_template",
+      "target": "ollama_llm",
+      "sourceHandle": "text",
+      "targetHandle": "prompt"
+    },
+    {
+      "source": "ollama_llm",
+      "target": "output_result",
+      "sourceHandle": "response",
+      "targetHandle": "output"
+    }
+  ]
+} 
