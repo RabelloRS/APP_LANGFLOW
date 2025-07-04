@@ -1,7 +1,10 @@
 # Script para iniciar Langflow no ambiente virtual
-Write-Host "=== Iniciador do Langflow (Ambiente Virtual) ===" -ForegroundColor Green
-Write-Host ""
 
+param(
+    [string]$HostAddress = "0.0.0.0",
+    [int]$Port = 3000
+)
+Write-Host "=== Iniciador do Langflow (Ambiente Virtual) ===" -ForegroundColor Green
 # Verificar se o ambiente virtual existe
 if (-not (Test-Path ".venv")) {
     Write-Host "ERRO: Ambiente virtual .venv nao encontrado." -ForegroundColor Red
@@ -57,7 +60,7 @@ Write-Host ""
 # Função para verificar se o servidor está rodando
 function Test-LangflowServer {
     try {
-        $response = Invoke-WebRequest -Uri "http://localhost:3000" -TimeoutSec 5 -UseBasicParsing
+        $response = Invoke-WebRequest -Uri "http://localhost:$Port" -TimeoutSec 5 -UseBasicParsing
         return $response.StatusCode -eq 200
     } catch {
         return $false
@@ -70,7 +73,7 @@ function Start-LangflowWithMonitoring {
     
     # Iniciar Langflow em background usando o Python do ambiente virtual
     $pythonPath = ".\.venv\Scripts\python.exe"
-    $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
+    $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", $HostAddress, "--port", $Port -PassThru -WindowStyle Hidden
     
     Write-Host "Aguardando inicializacao do servidor..." -ForegroundColor Yellow
     
@@ -87,24 +90,24 @@ function Start-LangflowWithMonitoring {
         
         if (Test-LangflowServer) {
             Write-Host "OK: Langflow iniciado com sucesso!" -ForegroundColor Green
-            Write-Host "Servidor rodando em: http://localhost:3000" -ForegroundColor Green
+            Write-Host "Servidor rodando em: http://localhost:$Port" -ForegroundColor Green
             Write-Host "Status: ONLINE" -ForegroundColor Green
             
             # Abrir navegador
             try {
-                Start-Process "http://localhost:3000"
+                Start-Process "http://localhost:$Port"
                 Write-Host "Navegador aberto automaticamente" -ForegroundColor Green
             } catch {
                 Write-Host "Aviso: Nao foi possivel abrir o navegador automaticamente" -ForegroundColor Yellow
-                Write-Host "Abra manualmente: http://localhost:3000" -ForegroundColor Cyan
+                Write-Host "Abra manualmente: http://localhost:$Port" -ForegroundColor Cyan
             }
             
             # Mostrar informações do processo
             Write-Host ""
             Write-Host "Informacoes do Servidor:" -ForegroundColor Cyan
             Write-Host "   PID: $($langflowProcess.Id)" -ForegroundColor White
-            Write-Host "   Porta: 3000" -ForegroundColor White
-            Write-Host "   Host: 0.0.0.0" -ForegroundColor White
+            Write-Host "   Porta: $Port" -ForegroundColor White
+            Write-Host "   Host: $HostAddress" -ForegroundColor White
             Write-Host "   Status: Ativo" -ForegroundColor Green
             Write-Host ""
             Write-Host "Monitoramento ativo - O servidor continuara rodando" -ForegroundColor Yellow
@@ -127,7 +130,7 @@ function Start-LangflowWithMonitoring {
                         Write-Host "Reiniciando servidor..." -ForegroundColor Yellow
                         Stop-Process -Id $langflowProcess.Id -Force -ErrorAction SilentlyContinue
                         Start-Sleep -Seconds 2
-                        $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
+                        $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", $HostAddress, "--port", $Port -PassThru -WindowStyle Hidden
                         $monitorCount = 0
                     }
                 }
@@ -149,7 +152,7 @@ function Start-LangflowWithMonitoring {
         
         if (Test-LangflowServer) {
             Write-Host "OK: Langflow iniciou apos delay!" -ForegroundColor Green
-            Start-Process "http://localhost:3000"
+            Start-Process "http://localhost:$Port"
         } else {
             Write-Host "ERRO: Servidor ainda nao esta respondendo" -ForegroundColor Red
             Stop-Process -Id $langflowProcess.Id -Force -ErrorAction SilentlyContinue
