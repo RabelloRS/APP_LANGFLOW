@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Sistema RAG - Planilhas de Preços{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Socket.IO -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-bg: #343a40;
+        }
+        
+        body {
+            background-color: var(--light-bg);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: var(--primary-color) !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+            font-weight: 500;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), #2ecc71);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-color), #f1c40f);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #c0392b);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 25px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-ok {
+            background-color: var(--success-color);
+        }
+        
+        .status-error {
+            background-color: var(--danger-color);
+        }
+        
+        .status-warning {
+            background-color: var(--warning-color);
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .loading.show {
+            display: inline-block;
+        }
+        
+        .console-output {
+            background-color: var(--dark-bg);
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .file-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--secondary-color);
+            transition: all 0.3s;
+        }
+        
+        .file-item:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transform: translateX(5px);
+        }
+        
+        .stats-card {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .stats-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .stats-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .search-box {
+            background: white;
+            border-radius: 25px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .price {
+            font-weight: bold;
+            color: var(--success-color);
+            font-size: 1.1rem;
+        }
+        
+        .code {
+            font-family: 'Courier New', monospace;
+            background-color: #f8f9fa;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--primary-color);
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line me-2"></i>
+                Sistema RAG - Planilhas de Preços
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#dashboard">
+                            <i class="fas fa-tachometer-alt me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#search">
+                            <i class="fas fa-search me-1"></i>Busca
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#files">
+                            <i class="fas fa-file-alt me-1"></i>Arquivos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/processar_planilhas">
+                            <i class="fas fa-file-excel me-1"></i>Processar Planilhas
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/banco_dados">
+                            <i class="fas fa-database me-1"></i>Banco de Dados
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#scripts">
+                            <i class="fas fa-code me-1"></i>Scripts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#status">
+                            <i class="fas fa-heartbeat me-1"></i>Status
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mt-4">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-light text-center py-3 mt-5">
+        <div class="container">
+            <p class="mb-0">
+                <i class="fas fa-code me-1"></i>
+                Sistema RAG para Planilhas de Preços - v1.0.0
+                <span class="ms-3">
+                    <i class="fas fa-github me-1"></i>
+                    Baseado em priceAPI e SICONV
+                </span>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        socket.on('connect', function() {
+            console.log('Conectado ao servidor');
+            updateConnectionStatus(true);
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Desconectado do servidor');
+            updateConnectionStatus(false);
+        });
+        
+        socket.on('script_result', function(data) {
+            console.log('Resultado do script:', data);
+            showScriptResult(data);
+        });
+        
+        socket.on('system_status', function(status) {
+            console.log('Status do sistema:', status);
+            updateSystemStatus(status);
+        });
+        
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('connection-status');
+            if (indicator) {
+                indicator.className = connected ? 'status-indicator status-ok' : 'status-indicator status-error';
+                indicator.title = connected ? 'Conectado' : 'Desconectado';
+            }
+        }
+        
+        function showScriptResult(data) {
+            const resultDiv = document.getElementById('script-result');
+            if (resultDiv) {
+                let html = `<div class="alert alert-${data.success ? 'success' : 'danger'}">`;
+                html += `<h5>Script: ${data.script}</h5>`;
+                html += `<p><strong>Status:</strong> ${data.success ? 'Sucesso' : 'Erro'}</p>`;
+                
+                if (data.output) {
+                    html += `<h6>Saída:</h6><div class="console-output">${data.output}</div>`;
+                }
+                
+                if (data.error) {
+                    html += `<h6>Erro:</h6><div class="console-output text-danger">${data.error}</div>`;
+                }
+                
+                html += '</div>';
+                resultDiv.innerHTML = html;
+                resultDiv.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        function updateSystemStatus(status) {
+            Object.keys(status).forEach(component => {
+                const element = document.getElementById(`status-${component}`);
+                if (element) {
+                    element.className = `status-indicator ${status[component] ? 'status-ok' : 'status-error'}`;
+                    element.title = status[component] ? `${component} OK` : `${component} Erro`;
+                }
+            });
+        }
+        
+        function showLoading(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.add('show');
+            }
+        }
+        
+        function hideLoading(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.classList.remove('show');
+            }
+        }
+        
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(alertDiv, container.firstChild);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
+        // Auto-refresh status every 30 seconds
+        setInterval(() => {
+            socket.emit('request_status');
+        }, 30000);
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

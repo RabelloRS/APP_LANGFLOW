@@ -6,6 +6,7 @@ Write-Host ""
 if (-not (Test-Path ".venv")) {
     Write-Host "ERRO: Ambiente virtual .venv nao encontrado." -ForegroundColor Red
     Write-Host "Execute: python -m venv .venv" -ForegroundColor Yellow
+    Write-Host "Execute: python -m pip install --upgrade pip" -ForegroundColor Yellow
     Read-Host "Pressione Enter para sair"
     exit 1
 }
@@ -67,8 +68,9 @@ function Test-LangflowServer {
 function Start-LangflowWithMonitoring {
     Write-Host "Iniciando Langflow..." -ForegroundColor Green
     
-    # Iniciar Langflow em background
-    $langflowProcess = Start-Process -FilePath "langflow" -ArgumentList "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
+    # Iniciar Langflow em background usando o Python do ambiente virtual
+    $pythonPath = ".\.venv\Scripts\python.exe"
+    $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
     
     Write-Host "Aguardando inicializacao do servidor..." -ForegroundColor Yellow
     
@@ -125,7 +127,7 @@ function Start-LangflowWithMonitoring {
                         Write-Host "Reiniciando servidor..." -ForegroundColor Yellow
                         Stop-Process -Id $langflowProcess.Id -Force -ErrorAction SilentlyContinue
                         Start-Sleep -Seconds 2
-                        $langflowProcess = Start-Process -FilePath "langflow" -ArgumentList "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
+                        $langflowProcess = Start-Process -FilePath $pythonPath -ArgumentList "-m", "langflow", "run", "--host", "0.0.0.0", "--port", "3000" -PassThru -WindowStyle Hidden
                         $monitorCount = 0
                     }
                 }
@@ -161,4 +163,4 @@ function Start-LangflowWithMonitoring {
 }
 
 # Iniciar Langflow com monitoramento
-Start-LangflowWithMonitoring 
+Start-LangflowWithMonitoring

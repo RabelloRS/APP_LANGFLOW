@@ -15,11 +15,12 @@ Este projeto implementa um sistema RAG (Retrieval-Augmented Generation) para pro
 ```
 APP_LANGFLOW/
 ├── src/                    # Código fonte principal
-│   ├── core/              # Módulos principais do sistema
-│   ├── processors/        # Processadores de documentos
-│   ├── database/          # Camada de acesso a dados
-│   ├── utils/             # Utilitários e helpers
-│   └── models/            # Modelos de dados
+│   ├── core/              # Módulos principais do sistema (e.g., file_monitor, ai_classifier, cli_search, price_source_manager)
+│   ├── processors/        # Processadores de documentos (e.g., government_spreadsheet_processor)
+│   ├── database/          # Camada de acesso a dados (e.g., db_manager)
+│   ├── utils/             # Utilitários e helpers (e.g., logger)
+│   ├── models/            # Modelos de dados (e.g., processed_file, service)
+│   └── web/               # Interface web (e.g., app.py, templates/)
 ├── config/                # Arquivos de configuração
 ├── data/                  # Dados de exemplo e processados
 ├── database/              # Banco de dados e índices

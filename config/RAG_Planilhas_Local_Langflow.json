@@ -19,7 +19,7 @@
               "required": true,
               "show": true,
               "multiline": true,
-              "value": "Quais orçamentos temos para clientes corporativos?",
+              "value": "Qual o preço do parafuso sextavado?",
               "name": "Pergunta sobre Orçamentos"
             }
           }
@@ -40,7 +40,7 @@
               "type": "str",
               "required": true,
               "show": true,
-              "value": "orcamentos_planilhas",
+              "value": "orcamentos_planilhas_chunks",
               "name": "Nome da Coleção"
             },
             "query": {
@@ -145,7 +145,7 @@
               "required": true,
               "show": true,
               "multiline": true,
-              "value": "Com base nos dados das planilhas de orçamento fornecidos, responda à seguinte pergunta:\n\nPergunta: {query}\n\nDados das planilhas:\n{context}\n\nPor favor, analise os dados e forneça uma resposta detalhada, incluindo:\n- Resumo dos orçamentos encontrados\n- Valores totais se disponíveis\n- Clientes mencionados\n- Produtos ou serviços\n- Prazos ou datas importantes\n\nResposta:",
+              "value": "Com base nos seguintes trechos extraídos de planilhas de orçamento, responda à pergunta do usuário.\n\nPergunta: {query}\n\nTrechos encontrados:\n{context}\n\nForneça uma resposta consolidada e, se possível, indique o arquivo e a linha de onde a informação foi retirada.",
               "name": "Template"
             }
           }
@@ -187,7 +187,7 @@
               "type": "str",
               "required": true,
               "show": true,
-              "value": "\\n",
+              "value": "\n",
               "name": "Separador"
             },
             "chunk_size": {

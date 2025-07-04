@@ -1,0 +1,21 @@
+body {
+    padding-top: 56px; /* Adjust for fixed navbar */
+}
+
+.container {
+    margin-top: 20px;
+}
+
+#progressLog {
+    background-color: #f8f9fa;
+    border-color: #e9ecef;
+}
+
+#logList li {
+    padding: 5px 0;
+    border-bottom: 1px solid #eee;
+}
+
+#logList li:last-child {
+    border-bottom: none;
+}

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Controle - RAG Planilhas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { max-width: 800px; }
+        .card { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">RAG Planilhas</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link active" href="/">Processamento</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/search">Busca</a></li>
+                    <li class="nav-item
+                    "><a class="nav-link" href="/database">Banco de Dados</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h3>Processar Todas as Planilhas</h3>
+            </div>
+            <div class="card-body">
+                <p>Clique no botão abaixo para iniciar o processo de leitura, "chunking" e armazenamento de todas as planilhas no banco de dados vetorial (ChromaDB). O banco de dados existente será limpo antes do início.</p>
+                <button id="process-btn" class="btn btn-primary">Iniciar Processamento</button>
+            </div>
+        </div>
+
+        <div id="status-area" class="card mt-4" style="display: none;">
+            <div class="card-header">
+                <h4>Status do Processamento</h4>
+            </div>
+            <div class="card-body">
+                <div id="spinner" class="spinner-border text-primary" role="status" style="display: none;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="result-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('process-btn').addEventListener('click', function() {
+            const statusArea = document.getElementById('status-area');
+            const spinner = document.getElementById('spinner');
+            const resultMessage = document.getElementById('result-message');
+            const processBtn = this;
+
+            statusArea.style.display = 'block';
+            spinner.style.display = 'block';
+            resultMessage.innerHTML = '';
+            processBtn.disabled = true;
+
+            fetch('/api/process_spreadsheets', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    spinner.style.display = 'none';
+                    processBtn.disabled = false;
+                    if (data.success) {
+                        resultMessage.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                    } else {
+                        resultMessage.innerHTML = `<div class="alert alert-danger">Erro: ${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    spinner.style.display = 'none';
+                    processBtn.disabled = false;
+                    resultMessage.innerHTML = `<div class="alert alert-danger">Erro na comunicação com o servidor.</div>`;
+                });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Banco de Dados - RAG Planilhas</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { max-width: 800px; }
+        .card { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">RAG Planilhas</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="/">Processamento</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/search">Busca</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/database">Banco de Dados</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h3>Status do Banco de Dados Vetorial (ChromaDB)</h3>
+            </div>
+            <div class="card-body">
+                <button id="refresh-btn" class="btn btn-secondary mb-3">Atualizar Status</button>
+                <div id="stats-area"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function fetchStats() {
+            const statsArea = document.getElementById('stats-area');
+            statsArea.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>';
+
+            fetch('/api/db_stats')
+                .then(response => response.json())
+                .then(data => {
+                    statsArea.innerHTML = '';
+                    if (data.success) {
+                        const stats = data.statistics;
+                        const statsCard = `
+                            <ul class="list-group">
+                                <li class="list-group-item d-flex justify-content-between align-items-center">
+                                    Total de Documentos (Chunks)
+                                    <span class="badge bg-primary rounded-pill">${stats.total_documentos}</span>
+                                </li>
+                                <li class="list-group-item">
+                                    <strong>Caminho do Banco:</strong> ${stats.caminho_banco}
+                                </li>
+                            </ul>
+                        `;
+                        statsArea.innerHTML = statsCard;
+                    } else {
+                        statsArea.innerHTML = `<div class="alert alert-danger">Erro: ${data.error}</div>`;
+                    }
+                })
+                .catch(error => {
+                    statsArea.innerHTML = '<div class="alert alert-danger">Erro na comunicação com o servidor.</div>';
+                });
+        }
+
+        document.getElementById('refresh-btn').addEventListener('click', fetchStats);
+
+        // Fetch stats on page load
+        document.addEventListener('DOMContentLoaded', fetchStats);
+    </script>
+</body>
+</html>

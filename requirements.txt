@@ -3,45 +3,91 @@ pydantic>=2.0.0
 sqlalchemy>=2.0.0
 chromadb>=0.4.0
 langflow>=0.6.0
+langchain==0.1.0
+langchain-community==0.0.10
+langchain-openai==0.0.5
+langchain-ollama==0.3.3
+
+# Interface Web
+flask==3.0.0
+flask-socketio==5.3.6
+python-socketio==5.10.0
+python-engineio==4.8.0
 
 # Processamento de PDF
 PyPDF2>=3.0.0
 pdfplumber>=0.9.0
 pymupdf>=1.23.0
+pypdf2==3.0.1
 
 # Processamento de Word
 python-docx>=0.8.11
+python-docx==1.1.0
 
 # Manipulação de dados
 pandas>=2.0.0
 numpy>=1.24.0
 openpyxl>=3.1.0
+openpyxl==3.1.2
 xlrd>=2.0.1
+xlrd==2.0.1
 
 # Descompactação de arquivos
 py7zr>=0.20.0
 rarfile>=4.0
+zipfile36==0.1.3
+rarfile==4.0
 
 # Machine Learning e NLP
 scikit-learn>=1.3.0
 sentence-transformers>=2.2.0
 transformers>=4.30.0
+transformers==4.36.2
 torch>=2.0.0
+torch==2.1.2
 nltk>=3.8.0
+nltk==3.8.1
+spacy==3.7.2
+textblob==0.17.1
 
 # Utilitários
 python-dotenv>=1.0.0
 loguru>=0.7.0
 click>=8.1.0
+click==8.1.7
 rich>=13.0.0
 watchdog>=3.0.0
+watchdog==3.0.0
+pathlib2==2.3.7
 
 # Testes
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.0
+pytest==7.4.3
 
 # Desenvolvimento
 black>=23.0.0
 flake8>=6.0.0
-mypy>=1.5.0 
+flake8==6.1.0
+mypy>=1.5.0
+
+# Interface CLI (baseado no priceAPI)
+tabulate==0.9.0
+argparse
+
+# Processamento de dados
+csv
+json
+datetime
+typing
+dataclasses
+abc
+pathlib
+
+# Banco de dados e vetores
+chromadb>=0.4.0
+chromadb==0.4.22
+sqlite3
+sqlalchemy>=2.0.0
+sqlalchemy==2.0.23 

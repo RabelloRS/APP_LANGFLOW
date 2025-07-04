@@ -7,8 +7,12 @@ import sys
 import os
 from pathlib import Path
 
+# Adicionar o diretório raiz do projeto ao path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 # Adicionar o diretório src ao path
-src_path = Path(__file__).parent.parent / "src"
+src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 from config.config import validate_config, create_directories, get_config

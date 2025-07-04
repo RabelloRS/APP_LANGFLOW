@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Banco de Dados{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="fas fa-database"></i> Visualizador do Banco de Dados SQLite</h3>
+                    <p class="text-muted">Visualize e explore os dados armazenados no banco de dados</p>
+                </div>
+                <div class="card-body">
+                    <!-- Estatísticas do Banco -->
+                    <div id="estatisticasBanco" class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h4 id="totalTabelas">0</h4>
+                                    <p>Total de Tabelas</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h4 id="tamanhoBanco">0 KB</h4>
+                                    <p>Tamanho do Banco</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h4 id="totalRegistros">0</h4>
+                                    <p>Total de Registros</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h4 id="statusBanco">Desconhecido</h4>
+                                    <p>Status</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Tabelas -->
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-table"></i> Tabelas do Banco</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="listaTabelas" class="list-group">
+                                        <!-- Lista de tabelas será inserida aqui -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Dados da Tabela Selecionada -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5><i class="fas fa-list"></i> Dados da Tabela: <span id="nomeTabelaAtual">Nenhuma tabela selecionada</span></h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="dadosTabela">
+                                        <p class="text-muted">Selecione uma tabela para visualizar os dados</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de Dados -->
+                    <div id="tabelaDados" class="mt-4" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Dados da Tabela</h5>
+                                <small class="text-muted">Mostrando <span id="mostrandoRegistros">0</span> de <span id="totalRegistrosTabela">0</span> registros</small>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table id="tabelaDadosTable" class="table table-striped table-bordered">
+                                        <thead id="tabelaDadosHeader">
+                                            <!-- Cabeçalhos serão inseridos aqui -->
+                                        </thead>
+                                        <tbody id="tabelaDadosBody">
+                                            <!-- Dados serão inseridos aqui -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    let tabelaAtual = null;
+    
+    // Carregar estatísticas do banco
+    carregarEstatisticasBanco();
+    
+    // Carregar lista de tabelas
+    carregarTabelas();
+    
+    function carregarEstatisticasBanco() {
+        $.ajax({
+            url: '/api/banco_dados/estatisticas',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    $('#totalTabelas').text(response.total_tabelas);
+                    $('#tamanhoBanco').text(formatBytes(response.tamanho_arquivo));
+                    $('#statusBanco').text('Ativo');
+                    
+                    // Calcular total de registros
+                    let totalRegistros = 0;
+                    for (let tabela in response.estatisticas) {
+                        totalRegistros += response.estatisticas[tabela];
+                    }
+                    $('#totalRegistros').text(totalRegistros.toLocaleString());
+                } else {
+                    $('#statusBanco').text('Erro');
+                    console.error('Erro ao carregar estatísticas:', response.error);
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#statusBanco').text('Erro');
+                console.error('Erro na requisição:', error);
+            }
+        });
+    }
+    
+    function carregarTabelas() {
+        $.ajax({
+            url: '/api/banco_dados/tabelas',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const listaTabelas = $('#listaTabelas');
+                    listaTabelas.empty();
+                    
+                    if (response.tabelas.length === 0) {
+                        listaTabelas.append('<p class="text-muted">Nenhuma tabela encontrada</p>');
+                    } else {
+                        response.tabelas.forEach(function(tabela) {
+                            const item = $(`
+                                <div class="list-group-item list-group-item-action" data-tabela="${tabela}">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <h6 class="mb-1">${tabela}</h6>
+                                        <small class="text-muted">Clique para ver dados</small>
+                                    </div>
+                                </div>
+                            `);
+                            
+                            item.click(function() {
+                                carregarDadosTabela(tabela);
+                            });
+                            
+                            listaTabelas.append(item);
+                        });
+                    }
+                } else {
+                    console.error('Erro ao carregar tabelas:', response.error);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Erro na requisição:', error);
+            }
+        });
+    }
+    
+    function carregarDadosTabela(tabela) {
+        tabelaAtual = tabela;
+        $('#nomeTabelaAtual').text(tabela);
+        
+        $.ajax({
+            url: `/api/banco_dados/dados/${tabela}`,
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    mostrarDadosTabela(response);
+                } else {
+                    $('#dadosTabela').html(`<div class="alert alert-danger">Erro: ${response.error}</div>`);
+                    $('#tabelaDados').hide();
+                }
+            },
+            error: function(xhr, status, error) {
+                $('#dadosTabela').html(`<div class="alert alert-danger">Erro na requisição: ${error}</div>`);
+                $('#tabelaDados').hide();
+            }
+        });
+    }
+    
+    function mostrarDadosTabela(data) {
+        // Atualizar contadores
+        $('#mostrandoRegistros').text(data.mostrando);
+        $('#totalRegistrosTabela').text(data.total_linhas.toLocaleString());
+        
+        // Criar cabeçalho da tabela
+        const header = $('#tabelaDadosHeader');
+        header.empty();
+        
+        let headerRow = '<tr>';
+        data.colunas.forEach(function(coluna) {
+            headerRow += `<th>${coluna.name} <small class="text-muted">(${coluna.type})</small></th>`;
+        });
+        headerRow += '</tr>';
+        header.html(headerRow);
+        
+        // Criar corpo da tabela
+        const body = $('#tabelaDadosBody');
+        body.empty();
+        
+        if (data.dados.length === 0) {
+            body.html('<tr><td colspan="' + data.colunas.length + '" class="text-center text-muted">Nenhum dado encontrado</td></tr>');
+        } else {
+            data.dados.forEach(function(linha) {
+                let row = '<tr>';
+                linha.forEach(function(celula) {
+                    // Truncar células muito longas
+                    const texto = celula.length > 100 ? celula.substring(0, 100) + '...' : celula;
+                    row += `<td title="${celula}">${texto}</td>`;
+                });
+                row += '</tr>';
+                body.append(row);
+            });
+        }
+        
+        // Mostrar tabela
+        $('#tabelaDados').show();
+        
+        // Adicionar informações sobre a estrutura
+        let estruturaInfo = '<h6>Estrutura da Tabela:</h6><ul>';
+        data.colunas.forEach(function(coluna) {
+            estruturaInfo += `<li><strong>${coluna.name}</strong> (${coluna.type})</li>`;
+        });
+        estruturaInfo += '</ul>';
+        
+        $('#dadosTabela').html(estruturaInfo);
+    }
+    
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+});
+</script>
+{% endblock %} 

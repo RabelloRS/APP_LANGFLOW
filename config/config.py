@@ -120,7 +120,14 @@ CHROMA_CONFIG = {
     "chunk_overlap": 200,
 }
 
+# Configurações do RAG
+RAG_CONFIG = {
+    "pasta_docs": "D:\\docs_baixados",
+    "db_path": str(DATABASE_DIR / "chroma_db_rag"),
+}
+
 # Configurações de processamento de PDF
+
 PDF_PROCESSOR_CONFIG = {
     "extract_tables": True,
     "extract_text": True,

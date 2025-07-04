@@ -30,8 +30,10 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+from config.config import RAG_CONFIG
+
 class RAGPlanilhasLocal:
-    def __init__(self, pasta_docs: str = "D:\\docs_baixados", db_path: str = "./chroma_db"):
+    def __init__(self, pasta_docs: str = RAG_CONFIG["pasta_docs"], db_path: str = RAG_CONFIG["db_path"], on_progress_update: Optional[callable] = None):
         """
         Inicializa o sistema RAG para planilhas
         
@@ -42,6 +44,7 @@ class RAGPlanilhasLocal:
         self.pasta_docs = Path(pasta_docs)
         self.db_path = Path(db_path)
         self.db_path.mkdir(exist_ok=True)
+        self.on_progress_update = on_progress_update # Store the callback
         
         # Inicializar ChromaDB
         self.client = chromadb.PersistentClient(
@@ -51,8 +54,8 @@ class RAGPlanilhasLocal:
         
         # Criar ou obter coleção
         self.collection = self.client.get_or_create_collection(
-            name="orcamentos_planilhas",
-            metadata={"description": "Planilhas de orçamento processadas"}
+            name="orcamentos_planilhas_chunks",
+            metadata={"description": "Chunks de linhas de planilhas de orçamento processadas"}
         )
         
         logger.info(f"Sistema RAG inicializado - Pasta: {self.pasta_docs}, DB: {self.db_path}")
@@ -80,204 +83,184 @@ class RAGPlanilhasLocal:
         logger.info(f"Encontradas {len(planilhas)} planilhas em {self.pasta_docs} (incluindo subpastas)")
         return planilhas
     
-    def extrair_dados_planilha(self, caminho_planilha: Path) -> Dict[str, Any]:
+    def _criar_chunks_de_linha(self, df: pd.DataFrame, nome_arquivo: str, nome_aba: str, tipo_documento: str) -> List[Dict[str, Any]]:
         """
-        Extrai dados estruturados de uma planilha
-        
-        Args:
-            caminho_planilha: Caminho para a planilha
+        Cria uma lista de chunks, onde cada chunk é um dicionário representando uma linha.
+        """
+        chunks = []
+        for i, row in df.iterrows():
+            texto_embedding = f"No arquivo '{nome_arquivo}', na aba '{nome_aba}', a linha {i+1} contém os seguintes dados:\n"
+            for col, val in row.items():
+                texto_embedding += f"- {col}: {val}\n"
             
-        Returns:
-            Dicionário com dados extraídos
+            chunk = {
+                "documento": texto_embedding,
+                "metadados": {
+                    "arquivo": nome_arquivo,
+                    "aba": nome_aba,
+                    "linha": i + 1,
+                    "tipo_documento": tipo_documento,
+                    "colunas": ", ".join(df.columns.tolist())
+                }
+            }
+            chunks.append(chunk)
+        return chunks
+
+    def extrair_dados_planilha(self, caminho_planilha: Path) -> List[Dict[str, Any]]:
         """
+        Extrai dados de uma planilha e retorna uma lista de chunks de linha.
+        """
+        todos_chunks = []
         try:
-            # Detectar tipo de arquivo
-            extensao = caminho_planilha.suffix.lower()
-            
-            if extensao == '.csv':
-                df = pd.read_csv(caminho_planilha, encoding='utf-8')
-            else:
-                df = pd.read_excel(caminho_planilha)
-            
-            # Informações básicas
-            dados = {
-                "arquivo": caminho_planilha.name,
-                "caminho": str(caminho_planilha),
-                "tamanho_arquivo": caminho_planilha.stat().st_size,
-                "data_modificacao": datetime.fromtimestamp(caminho_planilha.stat().st_mtime).isoformat(),
-                "colunas": df.columns.tolist(),
-                "linhas": len(df),
-                "colunas_count": len(df.columns),
-                "tipos_dados": df.dtypes.to_dict()
-            }
-            
-            # Detectar se é planilha de orçamento
-            colunas_texto = [col.lower() for col in df.columns]
-            palavras_chave_orcamento = [
-                'orcamento', 'preço', 'valor', 'custo', 'total', 'cliente',
-                'produto', 'serviço', 'quantidade', 'unitário', 'subtotal'
-            ]
-            
-            score_orcamento = sum(1 for palavra in palavras_chave_orcamento 
-                                if any(palavra in col for col in colunas_texto))
-            
-            dados["tipo_documento"] = "orcamento" if score_orcamento >= 2 else "planilha_geral"
-            dados["score_orcamento"] = score_orcamento
-            
-            # Extrair amostra de dados (primeiras 5 linhas)
-            dados["amostra_dados"] = df.head().to_dict('records')
-            
-            # Estatísticas básicas
-            dados["estatisticas"] = {
-                "colunas_numericas": len(df.select_dtypes(include=[np.number]).columns),
-                "colunas_texto": len(df.select_dtypes(include=['object']).columns),
-                "colunas_data": len(df.select_dtypes(include=['datetime']).columns),
-                "valores_unicos_por_coluna": {col: df[col].nunique() for col in df.columns}
-            }
-            
-            # Criar texto para embedding
-            texto_embedding = self._criar_texto_embedding(df, dados)
-            dados["texto_embedding"] = texto_embedding
-            
-            logger.info(f"Extraídos dados de: {caminho_planilha.name} ({len(df)} linhas)")
-            return dados
-            
+            if caminho_planilha.suffix.lower() in ['.xlsx', '.xls', '.xlsm']:
+                if self.on_progress_update:
+                    self.on_progress_update(f"Analisando arquivo: {caminho_planilha.name}")
+                excel_file = pd.ExcelFile(caminho_planilha)
+                for aba in excel_file.sheet_names:
+                    try:
+                        if self.on_progress_update:
+                            self.on_progress_update(f"  Analisando aba '{aba}' em {caminho_planilha.name}...")
+                        df = pd.read_excel(caminho_planilha, sheet_name=aba)
+                        if df.empty:
+                            if self.on_progress_update:
+                                self.on_progress_update(f"  Aba '{aba}' em {caminho_planilha.name} está vazia. Pulando.")
+                            continue
+
+                        colunas_texto = [str(col).lower() for col in df.columns]
+                        palavras_chave_orcamento = [
+                            'orcamento', 'preço', 'valor', 'custo', 'total', 'cliente', 'codigo', 'R$', 'unidade', 'Un',
+                            'produto', 'serviço', 'quantidade', 'unitário', 'descricao','subtotal'
+                        ]
+                        score_orcamento = sum(1 for palavra in palavras_chave_orcamento if any(palavra in col for col in colunas_texto))
+                        
+                        # Analisar também o conteúdo das células para refinar o score
+                        amostra_conteudo = " ".join(df.head(10).to_string(index=False).lower().split())
+                        score_conteudo = sum(1 for palavra in palavras_chave_orcamento if palavra in amostra_conteudo)
+                        score_total = score_orcamento + (1 if score_conteudo > 5 else 0)
+
+                        tipo_documento = "orcamento" if score_total >= 2 else "planilha_geral"
+                        if self.on_progress_update:
+                            self.on_progress_update(f"  Classificado como: {tipo_documento} (Score: {score_total})")
+                        
+                        chunks_aba = self._criar_chunks_de_linha(df, caminho_planilha.name, aba, tipo_documento)
+                        todos_chunks.extend(chunks_aba)
+                        logger.info(f"Processada aba '{aba}' do arquivo {caminho_planilha.name}, {len(chunks_aba)} chunks criados.")
+                    except Exception as e:
+                        logger.error(f"Erro ao processar aba {aba} do arquivo {caminho_planilha.name}: {e}")
+                        if self.on_progress_update:
+                            self.on_progress_update(f"  ERRO ao processar aba '{aba}' em {caminho_planilha.name}: {e}")
+            elif caminho_planilha.suffix.lower() == '.csv':
+                if self.on_progress_update:
+                    self.on_progress_update(f"Analisando arquivo CSV: {caminho_planilha.name}")
+                df = pd.read_csv(caminho_planilha)
+                if df.empty:
+                    if self.on_progress_update:
+                        self.on_progress_update(f"  Arquivo CSV {caminho_planilha.name} está vazio. Pulando.")
+                    return todos_chunks
+
+                colunas_texto = [str(col).lower() for col in df.columns]
+                palavras_chave_orcamento = [
+                    'orcamento', 'preço', 'valor', 'custo', 'total', 'cliente', 'codigo', 'R$', 'unidade', 'Un',
+                    'produto', 'serviço', 'quantidade', 'unitário', 'descricao','subtotal'
+                ]
+                score_orcamento = sum(1 for palavra in palavras_chave_orcamento if any(palavra in col for col in colunas_texto))
+                
+                amostra_conteudo = " ".join(df.head(10).to_string(index=False).lower().split())
+                score_conteudo = sum(1 for palavra in palavras_chave_orcamento if palavra in amostra_conteudo)
+                score_total = score_orcamento + (1 if score_conteudo > 5 else 0)
+
+                tipo_documento = "orcamento" if score_total >= 2 else "planilha_geral"
+                if self.on_progress_update:
+                    self.on_progress_update(f"  Classificado como: {tipo_documento} (Score: {score_total})")
+
+                chunks_csv = self._criar_chunks_de_linha(df, caminho_planilha.name, "default", tipo_documento)
+                todos_chunks.extend(chunks_csv)
+                logger.info(f"Processado arquivo CSV {caminho_planilha.name}, {len(chunks_csv)} chunks criados.")
         except Exception as e:
             logger.error(f"Erro ao processar {caminho_planilha}: {e}")
-            return {
-                "arquivo": caminho_planilha.name,
-                "erro": str(e),
-                "texto_embedding": f"Erro ao processar arquivo {caminho_planilha.name}: {e}"
-            }
-    
-    def _criar_texto_embedding(self, df: pd.DataFrame, dados: Dict) -> str:
-        """
-        Cria texto estruturado para embedding baseado nos dados da planilha
         
-        Args:
-            df: DataFrame da planilha
-            dados: Dados extraídos da planilha
-            
-        Returns:
-            Texto estruturado para embedding
-        """
-        linhas = []
-        
-        # Informações do arquivo
-        linhas.append(f"Arquivo: {dados['arquivo']}")
-        linhas.append(f"Tipo: {dados['tipo_documento']}")
-        linhas.append(f"Colunas: {', '.join(dados['colunas'])}")
-        linhas.append(f"Total de linhas: {dados['linhas']}")
-        
-        # Cabeçalho
-        linhas.append(f"Cabeçalho: {' | '.join(dados['colunas'])}")
-        
-        # Amostra de dados (primeiras 3 linhas)
-        for i, linha in enumerate(dados['amostra_dados'][:3]):
-            valores = [str(v) for v in linha.values()]
-            linhas.append(f"Linha {i+1}: {' | '.join(valores)}")
-        
-        # Estatísticas
-        stats = dados['estatisticas']
-        linhas.append(f"Colunas numéricas: {stats['colunas_numericas']}")
-        linhas.append(f"Colunas de texto: {stats['colunas_texto']}")
-        
-        # Valores únicos importantes
-        for col, unicos in stats['valores_unicos_por_coluna'].items():
-            if unicos <= 20 and unicos > 1:  # Colunas com poucos valores únicos
-                valores_unicos = df[col].dropna().unique()[:5]  # Primeiros 5 valores
-                linhas.append(f"Valores únicos em {col}: {', '.join(map(str, valores_unicos))}")
-        
-        return "\n".join(linhas)
-    
+        return todos_chunks
+
     def processar_todas_planilhas(self) -> List[Dict[str, Any]]:
         """
-        Processa todas as planilhas encontradas na pasta
-        
-        Returns:
-            Lista com dados de todas as planilhas processadas
+        Processa todas as planilhas encontradas na pasta e retorna uma lista de chunks.
         """
         planilhas = self.encontrar_planilhas()
         if not planilhas:
+            if self.on_progress_update:
+                self.on_progress_update("Nenhuma planilha encontrada para processar.")
             return []
         
-        dados_processados = []
-        
-        for planilha in planilhas:
+        todos_os_chunks = []
+        for i, planilha in enumerate(planilhas):
+            if self.on_progress_update:
+                self.on_progress_update(f"Processando arquivo {i+1}/{len(planilhas)}: {planilha.name}")
             logger.info(f"Processando: {planilha.name}")
-            dados = self.extrair_dados_planilha(planilha)
-            dados_processados.append(dados)
+            chunks = self.extrair_dados_planilha(planilha)
+            todos_os_chunks.extend(chunks)
         
-        logger.info(f"Processadas {len(dados_processados)} planilhas")
-        return dados_processados
+        logger.info(f"Processadas {len(planilhas)} planilhas, resultando em {len(todos_os_chunks)} chunks.")
+        return todos_os_chunks
     
-    def adicionar_ao_chromadb(self, dados_planilhas: List[Dict[str, Any]]):
+    def adicionar_ao_chromadb(self, chunks: List[Dict[str, Any]]):
         """
-        Adiciona os dados processados ao ChromaDB
-        
-        Args:
-            dados_planilhas: Lista com dados das planilhas processadas
+        Adiciona os chunks de dados processados ao ChromaDB.
         """
-        if not dados_planilhas:
-            logger.warning("Nenhum dado para adicionar ao ChromaDB")
+        if not chunks:
+            logger.warning("Nenhum chunk para adicionar ao ChromaDB")
+            if self.on_progress_update:
+                self.on_progress_update("Nenhum chunk para adicionar ao ChromaDB.")
             return
         
-        # Preparar dados para ChromaDB
         ids = []
         documentos = []
         metadados = []
         
-        for i, dados in enumerate(dados_planilhas):
-            if "erro" in dados:
-                continue  # Pular arquivos com erro
-            
-            doc_id = f"planilha_{i}_{dados['arquivo']}"
+        total_chunks = len(chunks)
+        for i, chunk in enumerate(chunks):
+            meta = chunk['metadados']
+            doc_id = f"{meta['arquivo']}_{meta['aba']}_{meta['linha']}"
             ids.append(doc_id)
-            documentos.append(dados['texto_embedding'])
+            documentos.append(chunk['documento'])
+            metadados.append(meta)
             
-            # Metadados para busca
-            metadados.append({
-                "arquivo": dados['arquivo'],
-                "tipo": dados['tipo_documento'],
-                "colunas": ", ".join(dados['colunas']),
-                "linhas": dados['linhas'],
-                "data_modificacao": dados['data_modificacao'],
-                "score_orcamento": dados['score_orcamento']
-            })
+            if self.on_progress_update and (i + 1) % 100 == 0: # Update every 100 chunks
+                self.on_progress_update(f"Preparando {i+1}/{total_chunks} chunks para adição ao ChromaDB...")
         
-        # Adicionar ao ChromaDB
         if ids:
-            self.collection.add(
-                ids=ids,
-                documents=documentos,
-                metadatas=metadados
-            )
-            logger.info(f"Adicionados {len(ids)} documentos ao ChromaDB")
+            # Adiciona em lotes para evitar sobrecarga
+            batch_size = 1000
+            for i in range(0, len(ids), batch_size):
+                batch_ids = ids[i:i+batch_size]
+                batch_documents = documentos[i:i+batch_size]
+                batch_metadatas = metadados[i:i+batch_size]
+                
+                self.collection.add(
+                    ids=batch_ids,
+                    documents=batch_documents,
+                    metadatas=batch_metadatas
+                )
+                if self.on_progress_update:
+                    self.on_progress_update(f"Adicionado lote de {len(batch_ids)} chunks ao ChromaDB. Total: {i + len(batch_ids)}/{total_chunks}")
+                logger.info(f"Adicionado lote de {len(batch_ids)} chunks ao ChromaDB.")
+            if self.on_progress_update:
+                self.on_progress_update(f"Total de {len(ids)} chunks adicionados ao ChromaDB.")
+            logger.info(f"Total de {len(ids)} chunks adicionados ao ChromaDB.")
     
     def buscar_orcamentos(self, query: str, n_results: int = 5) -> List[Dict]:
         """
-        Busca orçamentos baseado em uma consulta
-        
-        Args:
-            query: Texto da consulta
-            n_results: Número de resultados a retornar
-            
-        Returns:
-            Lista com resultados da busca
+        Busca orçamentos baseado em uma consulta.
         """
         try:
-            # Buscar no ChromaDB
             resultados = self.collection.query(
                 query_texts=[query],
                 n_results=n_results
             )
             
-            # Verificar se há resultados
             if not resultados or not resultados.get('ids') or not resultados['ids'][0]:
                 logger.info(f"Busca retornou 0 resultados")
                 return []
             
-            # Formatar resultados
             resultados_formatados = []
             for i in range(len(resultados['ids'][0])):
                 documentos = resultados.get('documents', [[]])
@@ -286,9 +269,9 @@ class RAGPlanilhasLocal:
                 
                 resultado = {
                     "id": resultados['ids'][0][i],
-                    "documento": documentos[0][i] if documentos and documentos[0] and i < len(documentos[0]) else "",
-                    "metadados": metadados[0][i] if metadados and metadados[0] and i < len(metadados[0]) else {},
-                    "distancia": distancias[0][i] if distancias and distancias[0] and i < len(distancias[0]) else 0.0
+                    "documento": documentos[0][i] if documentos and documentos[0] else "",
+                    "metadados": metadados[0][i] if metadados and metadados[0] else {},
+                    "distancia": distancias[0][i] if distancias and distancias[0] else 0.0
                 }
                 resultados_formatados.append(resultado)
             
@@ -301,78 +284,44 @@ class RAGPlanilhasLocal:
     
     def estatisticas_banco(self) -> Dict[str, Any]:
         """
-        Retorna estatísticas do banco de dados
-        
-        Returns:
-            Dicionário com estatísticas
+        Retorna estatísticas do banco de dados.
         """
         try:
             count = self.collection.count()
-            
-            # Buscar todos os metadados para estatísticas
-            todos = self.collection.get()
-            
-            tipos_documento = {}
-            total_linhas = 0
-            arquivos_por_tipo = {}
-            
-            if todos and todos.get('metadatas') and todos['metadatas']:
-                for metadata in todos['metadatas']:
-                    if metadata:
-                        tipo = metadata.get('tipo', 'desconhecido')
-                        tipos_documento[tipo] = tipos_documento.get(tipo, 0) + 1
-                        
-                        linhas = metadata.get('linhas', 0)
-                        if isinstance(linhas, (int, float)):
-                            total_linhas += int(linhas)
-                        
-                        arquivo = metadata.get('arquivo', '')
-                        if arquivo:
-                            extensao = Path(str(arquivo)).suffix.lower()
-                            arquivos_por_tipo[extensao] = arquivos_por_tipo.get(extensao, 0) + 1
-            
             return {
                 "total_documentos": count,
-                "tipos_documento": tipos_documento,
-                "total_linhas": total_linhas,
-                "arquivos_por_tipo": arquivos_por_tipo,
                 "caminho_banco": str(self.db_path)
             }
-            
         except Exception as e:
             logger.error(f"Erro ao obter estatísticas: {e}")
             return {"erro": str(e)}
 
 def main():
     """
-    Função principal para demonstrar o uso do sistema RAG
+    Função principal para demonstrar o uso do sistema RAG.
     """
-    print("🚀 Sistema RAG para Planilhas de Orçamento - Solução Local")
-    print("=" * 60)
+    print("🚀 Sistema RAG para Planilhas de Orçamento - Solução Local (Chunking por Linha)")
+    print("=" * 70)
     
-    # Inicializar sistema
     rag = RAGPlanilhasLocal()
     
-    # Verificar se já existem dados no banco
     stats = rag.estatisticas_banco()
     if stats.get("total_documentos", 0) > 0:
-        print(f"📊 Banco já contém {stats['total_documentos']} documentos")
-        print(f"   Tipos: {stats.get('tipos_documento', {})}")
-        print(f"   Total de linhas: {stats.get('total_linhas', 0)}")
-        
-        resposta = input("\nDeseja reprocessar todas as planilhas? (s/n): ").lower()
-        if resposta != 's':
-            print("Usando dados existentes no banco.")
+        print(f"📊 Banco já contém {stats['total_documentos']} documentos (chunks).")
+        resposta = input("\nDeseja reprocessar todas as planilhas? (Isso limpará o banco de dados atual) (s/n): ").lower()
+        if resposta == 's':
+            print("Limpando o banco de dados e reprocessando...")
+            rag.client.delete_collection(name=rag.collection.name)
+            rag.collection = rag.client.get_or_create_collection(name="orcamentos_planilhas_chunks")
+            chunks = rag.processar_todas_planilhas()
+            rag.adicionar_ao_chromadb(chunks)
         else:
-            print("Reprocessando planilhas...")
-            dados = rag.processar_todas_planilhas()
-            rag.adicionar_ao_chromadb(dados)
+            print("Usando dados existentes no banco.")
     else:
         print("📁 Processando planilhas pela primeira vez...")
-        dados = rag.processar_todas_planilhas()
-        rag.adicionar_ao_chromadb(dados)
+        chunks = rag.processar_todas_planilhas()
+        rag.adicionar_ao_chromadb(chunks)
     
-    # Interface de consulta
     print("\n🔍 Interface de Consulta")
     print("Digite 'sair' para encerrar")
     print("-" * 40)
@@ -390,18 +339,16 @@ def main():
         resultados = rag.buscar_orcamentos(query, n_results=3)
         
         if resultados:
-            print(f"\n📋 Encontrados {len(resultados)} resultados:")
+            print(f"\n📋 Encontrados {len(resultados)} resultados relevantes:")
             for i, resultado in enumerate(resultados, 1):
-                print(f"\n{i}. Arquivo: {resultado['metadados']['arquivo']}")
-                print(f"   Tipo: {resultado['metadados']['tipo']}")
-                print(f"   Linhas: {resultado['metadados']['linhas']}")
-                print(f"   Colunas: {resultado['metadados']['colunas']}")
+                meta = resultado['metadados']
+                print(f"\n{i}. Origem: Arquivo '{meta.get('arquivo')}', Aba '{meta.get('aba')}', Linha {meta.get('linha')}")
                 print(f"   Relevância: {1 - resultado['distancia']:.2%}")
-                print(f"   Conteúdo: {resultado['documento'][:200]}...")
+                print(f"   Conteúdo do Chunk:\n{resultado['documento']}")
         else:
             print("❌ Nenhum resultado encontrado.")
     
     print("\n👋 Sistema encerrado!")
 
 if __name__ == "__main__":
-    main() 
+    main()
